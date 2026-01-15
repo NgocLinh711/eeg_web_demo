@@ -7,11 +7,9 @@ from utils.predict_logic import PredictorSystem
 
 st.set_page_config(page_title="EEG Diagnostic System", layout="wide", page_icon="🧠")
 
-
 @st.cache_resource
 def get_system():
     return PredictorSystem()
-
 
 # Init backend
 try:
@@ -22,7 +20,6 @@ except Exception as e:
     st.error(f"Lỗi khởi động: {e}")
     st.stop()
 
-
 # Sidebar
 with st.sidebar:
     st.title("Thông tin bệnh nhân")
@@ -32,9 +29,8 @@ with st.sidebar:
     sleep = st.number_input("Giờ ngủ/ngày", 0.0, 24.0, 7.0)
     well = st.selectbox("Chỉ số Well-being", [-2, -1, 0, 1, 2, 3], index=2)
 
-
 # Main UI
-st.title("🧠 Phân loại EEG đa lớp (TabTransformer + CNN + PSD + COH)")
+st.title("🧠 Phân loại EEG đa lớp (TabTransformer + CNN)")
 st.markdown("---")
 
 uploaded_file = st.file_uploader("📤 Tải lên file CSV EEG thô (raw EEG)", type=["csv"])
@@ -50,21 +46,26 @@ if uploaded_file and st.button("🚀 Chạy Chẩn đoán", type="primary"):
 
         start = time.time()
         try:
-            probs, classes = system.process_and_predict(temp_path, age, gender, education, sleep, well)
+            result, err = system.process_and_predict(temp_path, age, gender, education, sleep, well)
             duration = time.time() - start
 
-            if probs is None:
-                st.error(classes)
+            if err is not None or result is None:
+                st.error(err or "unknown-error")
             else:
                 st.success(f"✔ Hoàn thành trong {duration:.2f}s")
 
-                avg_probs = np.mean(probs, axis=0)
-                best_idx = np.argmax(avg_probs)
+                probs = result["epoch_probs"]          # (n_epochs, n_classes)
+                classes = result["classes"]            # list[str]
+                avg_probs = result["mean_prob"]        # (n_classes,)
+                best_idx = int(np.argmax(avg_probs))
 
                 col1, col2 = st.columns([1, 2])
                 with col1:
-                    st.metric("Kết quả dự đoán (Subject-level)", classes[best_idx],
-                              f"{avg_probs[best_idx]*100:.2f}%")
+                    st.metric(
+                        "Kết quả dự đoán (Subject-level)",
+                        result["pred_label"],
+                        f"{avg_probs[best_idx]*100:.2f}%"
+                    )
 
                 with col2:
                     df_chart = pd.DataFrame({"Class": classes, "Probability": avg_probs})

@@ -1028,6 +1028,9 @@ class dataset:
         # Tính độ dài (giây) của dữ liệu hiện tại (n_samples / Fs)
         trllength = str(self.data.shape[-1]/self.Fs)
 
+        if odata.ndim == 2:
+            odata = odata[np.newaxis, :, :]
+
         # Tạo tên file output theo chất lượng dữ liệu
         if self.info['data quality'] == 'OK':
             outname = idcode + '_' + cond + '_' + trllength + 's'
