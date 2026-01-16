@@ -7,7 +7,7 @@ import pandas as pd
 from system.system import EEGSystem
 
 # ============ PREDICTOR IMPORTS =============
-from predictor.cnn_tab_EO_model import CNNTabEOModel
+from predictor.cnn_tab_model import CNNTabModel
 # from predictor.cnn_tab_EC_model import CNNTabECModel
 
 # from predictor.cnn_EO_model import CNNEOModel
@@ -37,8 +37,8 @@ def load_registry():
 
     registry = {
         "CNN-Tab": {
-            "EO": CNNTabEOModel(debug=False),
-            # "EC": CNNTabECModel(debug=False),
+            "EO": CNNTabModel(condition="EO", debug=False),
+            "EC": CNNTabModel(condition="EC", debug=False),
         },
         "CNN": {
             # "EO": CNNEOModel(debug=False),
