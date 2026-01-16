@@ -1,5 +1,4 @@
 # system/system.py
-
 import numpy as np
 from eeg.preprocessing import autopreprocess, segment_and_reference
 from eeg.feature_extraction import compute_psd_epoch, compute_coh_epoch
