@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import time
-from utils.predict_logic import PredictorSystem
+from utils.CNN_Tab_EO_predict_logic import PredictorSystem
 
 st.set_page_config(page_title="EEG Diagnostic System", layout="wide", page_icon="🧠")
 
@@ -54,25 +54,22 @@ if uploaded_file and st.button("🚀 Chạy Chẩn đoán", type="primary"):
             else:
                 st.success(f"✔ Hoàn thành trong {duration:.2f}s")
 
-                probs = result["epoch_probs"]          # (n_epochs, n_classes)
-                classes = result["classes"]            # list[str]
-                avg_probs = result["mean_prob"]        # (n_classes,)
-                best_idx = int(np.argmax(avg_probs))
+            probs = result["epoch_probs"]
+            classes = result["classes"]
 
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    st.metric(
-                        "Kết quả dự đoán (Subject-level)",
-                        result["pred_label"],
-                        f"{avg_probs[best_idx]*100:.2f}%"
-                    )
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.metric("Kết quả dự đoán (Hard Voting)", result["pred_label"])
 
-                with col2:
-                    df_chart = pd.DataFrame({"Class": classes, "Probability": avg_probs})
-                    st.bar_chart(df_chart, x="Class", y="Probability")
+            with col2:
+                epoch_preds = np.argmax(probs, axis=1)
+                counts = pd.Series(epoch_preds).value_counts()
+                conf = counts.max() / len(epoch_preds)
+                st.metric("Confidence", f"{conf*100:.2f}%")
 
-                st.subheader("Chi tiết từng Epoch (2s)")
-                st.dataframe(pd.DataFrame(probs, columns=classes).style.highlight_max(axis=1))
+            st.subheader("Chi tiết từng Epoch (2s)")
+            df_epoch = pd.DataFrame(probs, columns=classes)
+            st.dataframe(df_epoch.style.highlight_max(axis=1))
 
         except Exception as e:
             st.error(f"Lỗi pipeline: {e}")

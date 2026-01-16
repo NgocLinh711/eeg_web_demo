@@ -237,20 +237,34 @@ class PredictorSystem:
         )
 
         classes = self.le.classes_
-        p_mean = probs.mean(axis=0)
-        idx = np.argmax(p_mean)
-        pred = classes[idx]
+
+        ###############################
+        # HARD VOTING
+        ###############################
+        epoch_preds = np.argmax(probs, axis=1)
+
+        from collections import Counter
+        counts = Counter(epoch_preds)
+        most_common = counts.most_common()
+        max_count = most_common[0][1]
+        candidates = [cls for cls, cnt in most_common if cnt == max_count]
+
+        if len(candidates) == 1:
+            final_idx = candidates[0]
+        else:
+            mean_probs = probs[:, candidates].mean(axis=0)
+            final_idx = candidates[np.argmax(mean_probs)]
+
+        pred = classes[final_idx]
 
         print("\n🎯 RESULT")
-        self.dbg("Classes:", classes.tolist())
-        self.dbg("Mean probs:", p_mean)
         print(f" → pred: {pred}")
         print(f" → n_epochs={n_epochs}")
 
         return {
             "pred_label": pred,
-            "mean_prob": p_mean,
             "epoch_probs": probs,
             "classes": classes.tolist(),
             "n_epochs": n_epochs,
+            "method": "majority_vote_highest_prob"
         }, None
