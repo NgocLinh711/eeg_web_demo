@@ -17,7 +17,7 @@ from predictor.cnn_tab_EO_model import CNNTabEOModel
 # from predictor.tab_EC_model import TabECModel
 
 # from predictor.mlp_EO_model import MLPEOModel
-# from predictor.mlp_EC_model import MLPECModel
+from predictor.mlp_EC_model import MLPECModel
 
 # from predictor.svm_EO_model import SVMEOMLModel
 # from predictor.svm_EC_model import SVMECModel
@@ -50,7 +50,7 @@ def load_registry():
         },
         "MLP": {
             # "EO": MLPEOModel(),
-            # "EC": MLPECModel(),
+            "EC": MLPECModel(),
         },
         "SVM": {
             # "EO": SVMEOMLModel(),
