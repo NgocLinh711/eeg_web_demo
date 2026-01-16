@@ -81,3 +81,7 @@ eeg/*.pyc
 system/__pycache__
 
 utils/__pycache__/
+
+predictor/__pycache__
+predictor/*.pyc
+
