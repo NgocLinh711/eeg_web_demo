@@ -74,3 +74,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+eeg/__pycache__/
+eeg/*.pyc
+
+system/__pycache__
+
+utils/__pycache__/
+
+predictor/__pycache__
+predictor/*.pyc
+
