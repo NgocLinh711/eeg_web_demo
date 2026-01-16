@@ -4,7 +4,7 @@ import os, json, joblib, numpy as np, tensorflow as tf
 from keras import layers
 from predictor.base import BaseModel
 
-ARTIFACTS_DIR = "artifacts"
+ARTIFACTS_DIR = "artifacts/CNNTab"
 MODEL_FILE = "tabtransformer_cnn_EO.best_new.keras"
 
 @tf.keras.utils.register_keras_serializable(package="Custom")
@@ -29,7 +29,7 @@ class ColIndex(layers.Layer):
 
 class CNNTabEOModel(BaseModel):
     def __init__(self, debug=False):
-        super().__init__("CNN_EO", n_classes=3)
+        super().__init__("CNNTab_EO", n_classes=3)
         self.debug = debug
 
         print("🔄 Loading CNN+TabTransformer (EO)...")
