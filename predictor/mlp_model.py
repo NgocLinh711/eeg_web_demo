@@ -28,10 +28,15 @@ class EmptyFeatures(layers.Layer):
         return super().get_config()
 
 
-class MLPECModel(BaseModel):
+class MLPModel(BaseModel):
     def __init__(self, debug=False):
-        super().__init__("MLP_EC", n_classes=3)
+        assert condition in ["EO", "EC"]
+
+        name = f"MLP_{condition}"
+        super().__init__(name, n_classes=3)
+
         self.debug = debug
+        self.condition = condition
 
         print("🔄 Loading MLP (EC)...")
 
