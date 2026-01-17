@@ -88,22 +88,25 @@ def compute_coh_epoch(epoch_chxT, fs=FS):
         for j in range(i + 1, ch):
             xj = epoch_chxT[j]
             _, Sxy = csd(
-                xi,
-                xj,
-                fs=fs,
-                nperseg=nperseg,
-                noverlap=noverlap,
-                detrend="constant",
-                scaling="density",
-                return_onesided=True,
-            )
-            
-            denom = (Sxx[i] * Sxx[j]) + EPS
-            cxy = (np.abs(Sxy) ** 2) / denom
+            xi, xj,
+            fs=fs,
+            nperseg=nperseg,
+            noverlap=noverlap,
+            detrend="constant",
+            scaling="density",
+            return_onesided=True,
+        )
 
-            for b, idx in enumerate(band_idxs):
-                v = float(np.mean(cxy[idx])) if idx.size else 0.0
-                coh[b, i, j] = v
-                coh[b, j, i] = v # Symmetric
+        # correct denom
+        den = np.sqrt(np.abs(Sxx[i]) * np.abs(Sxx[j])) + EPS
 
+        # coherence
+        cxy = (np.abs(Sxy) / den)**2
+        cxy = np.clip(cxy, 0.0, 1.0)
+
+        for b, idx in enumerate(band_idxs):
+            if idx.size:
+                coh[b, i, j] = float(np.mean(cxy[idx]))
+                coh[b, j, i] = coh[b, i, j]
+                
     return coh # Shape (Bands, Ch, Ch)

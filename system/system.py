@@ -1,14 +1,15 @@
-# system/system.py
+#system/system.py
 import numpy as np
+import os
 from eeg.preprocessing import autopreprocess, segment_and_reference
 from eeg.feature_extraction import compute_psd_epoch, compute_coh_epoch
 from predictor.base import BaseModel
 
 
 class EEGSystem:
-    def __init__(self, models: list[BaseModel], fs=500, epoch_sec=2.0, debug=False):
+    def __init__(self, models, fs=500, epoch_sec=2.0, debug=False):
         """
-        models: list các model (EO, EC, ensemble,...)
+        models: dict {"EO":[model1,model2], "EC":[model3,...]}
         """
         self.models = models
         self.fs = fs
@@ -20,7 +21,7 @@ class EEGSystem:
             print("[SYSTEM]", *args)
 
     ################################################
-    # MAIN PIPELINE
+    # ORIGINAL: SINGLE FILE PIPELINE (KEEP)
     ################################################
     def run(
         self,
@@ -34,26 +35,14 @@ class EEGSystem:
     ):
         self.dbg("=== PIPELINE START ===")
 
-        # ------------------------------
-        # STEP 1: Autopreprocess
-        # ------------------------------
         ds = autopreprocess(csv_path, self.fs, print_debug=self.debug)
 
-        # ------------------------------
-        # STEP 2: Segment
-        # ------------------------------
         segmented, err = segment_and_reference(
             ds, self.epoch_sec, self.fs, print_debug=self.debug
         )
-        if err:
-            return None, err
+        if err: return None, err
 
         n_epochs = segmented.shape[0]
-        self.dbg(f"Epochs: {n_epochs}")
-
-        # ------------------------------
-        # STEP 3: Features (PSD + COH)
-        # ------------------------------
         psd_list = []
         coh_list = []
 
@@ -62,37 +51,35 @@ class EEGSystem:
             psd = compute_psd_epoch(ep, fs=self.fs)
             coh = compute_coh_epoch(ep, fs=self.fs)
 
-            # standardize shape for CNN
             if coh.ndim == 2:
-                coh = coh[..., np.newaxis]  # (ch, ch, 1)
-            elif coh.shape[0] <= 10:        # assume (Bands, ch, ch)
-                coh = np.transpose(coh, (1,2,0))  # → (ch, ch, Bands)
+                coh = coh[..., np.newaxis]
+            elif coh.shape[0] <= 10:
+                coh = np.transpose(coh, (1,2,0))
+
+            # === DEBUG BLOCK ===
+            self.dbg(f"[SINGLE] epoch {i}: psd={psd.shape} coh={coh.shape}")
+            self.dbg("   psd sample:", psd.flatten()[:10])
+            self.dbg("   coh stats: mean=%.4f min=%.4f max=%.4f" %
+                    (coh.mean(), coh.min(), coh.max()))
 
             psd_list.append(psd)
             coh_list.append(coh)
 
+
         X_psd = np.array(psd_list)
         X_coh = np.array(coh_list)
 
-        # ------------------------------
-        # STEP 4: Inference Multi-Model
-        # ------------------------------
         results = []
 
         for model in self.models:
             needed = model.inputs()
             kwargs = {}
-
             if "psd" in needed: kwargs["psd"] = X_psd
             if "coh" in needed: kwargs["coh"] = X_coh
-
-            if {"cont", "cat"}.issubset(needed):
+            if {"cont","cat"}.issubset(needed):
                 kwargs.update(dict(
-                    age=age,
-                    gender=gender,
-                    education=education,
-                    sleep=sleep,
-                    well=well,
+                    age=age, gender=gender,
+                    education=education, sleep=sleep, well=well
                 ))
 
             proba, classes = model.predict_proba(**kwargs)
@@ -106,8 +93,118 @@ class EEGSystem:
                 "pred_label": classes[int(idx)]
             })
 
-        self.dbg("=== PIPELINE DONE ===")
+        return {"n_epochs": n_epochs, "results": results}, None
+    
+
+
+    ################################################
+    # MULTI-FILE MULTI-CONDITION PIPELINE (PATCHED)
+    ################################################
+    def run_multi(
+        self,
+        cond_files,
+        *,
+        age,
+        gender,
+        education,
+        sleep,
+        well,
+    ):
+        results = []
+        cache = {}
+
+        for cond, flist in cond_files.items():
+            if not flist:
+                continue
+
+            session_psd = []
+            session_coh = []
+            seg_last = None
+            raw_last = None
+
+            for f in flist:
+                temp = f"__{f.name}"
+                with open(temp, "wb") as g:
+                    g.write(f.getbuffer())
+
+                ds = autopreprocess(temp, self.fs, print_debug=self.debug)
+                seg, err = segment_and_reference(ds, self.epoch_sec, self.fs, print_debug=self.debug)
+                os.remove(temp)
+
+                if err:
+                    return None, err
+
+                raw_last = ds
+                seg_last = seg
+
+                psd_list = []
+                coh_list = []
+
+            for i in range(seg.shape[0]):
+                ep = seg[i]
+                psd = compute_psd_epoch(ep, fs=self.fs)
+                coh = compute_coh_epoch(ep, fs=self.fs)
+
+                if coh.ndim == 2:
+                    coh = coh[..., np.newaxis]
+                elif coh.shape[0] <= 10:
+                    coh = np.transpose(coh, (1,2,0))
+
+                # === DEBUG BLOCK ===
+                self.dbg(f"[{cond}] epoch {i}: psd={psd.shape} coh={coh.shape}")
+                self.dbg("   psd sample:", psd.flatten()[:10])
+                self.dbg("   coh stats: mean=%.4f min=%.4f max=%.4f" %
+                        (coh.mean(), coh.min(), coh.max()))
+
+                psd_list.append(psd)
+                coh_list.append(coh)
+
+
+                session_psd.append(np.array(psd_list))
+                session_coh.append(np.array(coh_list))
+
+            # move session append OUTSIDE loop!
+            session_psd.append(np.array(psd_list))
+            session_coh.append(np.array(coh_list))
+
+            cache[cond] = {
+                "psd": np.concatenate(session_psd, axis=0),
+                "coh": np.concatenate(session_coh, axis=0),
+                "seg": seg_last,
+                "raw": raw_last,
+            }
+
+        for cond, models in self.models.items():
+            if cond not in cache:
+                continue
+
+            X_psd = cache[cond]["psd"]
+            X_coh = cache[cond]["coh"]
+
+            for model in models:
+                needed = model.inputs()
+                kwargs = {}
+
+                if "psd" in needed: kwargs["psd"] = X_psd
+                if "coh" in needed: kwargs["coh"] = X_coh
+                if {"cont","cat"}.issubset(needed):
+                    kwargs.update(dict(
+                        age=age, gender=gender,
+                        education=education, sleep=sleep, well=well
+                    ))
+
+                proba, classes = model.predict_proba(**kwargs)
+                idx = model.hard_vote(proba)
+
+                results.append({
+                    "model": f"{model.name} ({cond})",
+                    "classes": classes,
+                    "epoch_probs": proba,
+                    "pred_idx": int(idx),
+                    "pred_label": classes[int(idx)]
+                })
+
         return {
-            "n_epochs": n_epochs,
             "results": results,
+            "cache": cache,
         }, None
