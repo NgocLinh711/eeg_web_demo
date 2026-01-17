@@ -5,6 +5,21 @@ from eeg.preprocessing import autopreprocess, segment_and_reference
 from eeg.feature_extraction import compute_psd_epoch, compute_coh_epoch
 from predictor.base import BaseModel
 
+FS = 500.0
+WELCH_WIN_SEC = 2.0
+WELCH_OVERLAP = 0.5
+PSD_FMIN = 1.0
+PSD_FMAX = 45.0
+LOG_PSD = True
+EPS = 1e-12
+
+COH_BANDS = [
+    ("delta", 1.0, 4.0),
+    ("theta", 4.0, 8.0),
+    ("alpha", 8.0, 13.0),
+    ("beta", 13.0, 30.0),
+    ("gamma", 30.0, 45.0),
+]
 
 class EEGSystem:
     def __init__(self, models, fs=500, epoch_sec=2.0, debug=False):
@@ -49,7 +64,7 @@ class EEGSystem:
         for i in range(n_epochs):
             ep = segmented[i]
             psd = compute_psd_epoch(ep, fs=self.fs)
-            coh = compute_coh_epoch(ep, fs=self.fs)
+            coh = compute_coh_epoch(ep, fs=self.fs, bands=COH_BANDS)
 
             if coh.ndim == 2:
                 coh = coh[..., np.newaxis]
@@ -143,7 +158,7 @@ class EEGSystem:
             for i in range(seg.shape[0]):
                 ep = seg[i]
                 psd = compute_psd_epoch(ep, fs=self.fs)
-                coh = compute_coh_epoch(ep, fs=self.fs)
+                coh = compute_coh_epoch(ep, fs=self.fs, bands=COH_BANDS)
 
                 if coh.ndim == 2:
                     coh = coh[..., np.newaxis]
@@ -159,11 +174,6 @@ class EEGSystem:
                 psd_list.append(psd)
                 coh_list.append(coh)
 
-
-                session_psd.append(np.array(psd_list))
-                session_coh.append(np.array(coh_list))
-
-            # move session append OUTSIDE loop!
             session_psd.append(np.array(psd_list))
             session_coh.append(np.array(coh_list))
 

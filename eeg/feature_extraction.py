@@ -1,18 +1,21 @@
 # eeg/feature_extraction.py
 import numpy as np
-from scipy.signal import welch, csd
+from scipy.signal import welch, csd, coherence
 
 # ==========================================
 # CONSTANTS (COPY TỪ NOTEBOOK CỦA BẠN)
 # ==========================================
 FS = 500.0
-WELCH_WIN_SEC = 2.0
-WELCH_OVERLAP = 0.5
+
+# PSD config
 PSD_FMIN = 1.0
 PSD_FMAX = 45.0
-LOG_PSD = True
-EPS = 1e-12
+LOG_PSD  = True
+EPS      = 1e-12
+WELCH_WIN_SEC = 2.0
+WELCH_OVERLAP = 0.5
 
+# Coherence config: tensor [epochs, bands, ch, ch]
 COH_BANDS = [
     ("delta", 1.0, 4.0),
     ("theta", 4.0, 8.0),
@@ -20,13 +23,13 @@ COH_BANDS = [
     ("beta", 13.0, 30.0),
     ("gamma", 30.0, 45.0),
 ]
+COH_DTYPE = np.float16
 
 def welch_params(fs, n_samples):
-    """Logic tính nperseg/noverlap gốc từ notebook"""
     nperseg = int(round(WELCH_WIN_SEC * fs))
-    # nperseg = min(max(nperseg, 16), n_samples) # Dòng này trong notebook phòng hờ epoch ngắn
+    nperseg = min(max(nperseg, 16), n_samples)
     noverlap = int(round(nperseg * WELCH_OVERLAP))
-    # noverlap = min(noverlap, nperseg - 1)
+    noverlap = min(noverlap, nperseg - 1)
     return nperseg, noverlap
 
 def compute_psd_epoch(epoch_chxT, fs=FS):
@@ -52,61 +55,34 @@ def compute_psd_epoch(epoch_chxT, fs=FS):
         
     return pxx.astype(np.float32)
 
-def compute_coh_epoch(epoch_chxT, fs=FS):
-    """Tính Coherence cho 1 epoch (Logic CSD -> Average Bands)"""
+def compute_coh_epoch(epoch_chxT, fs, bands):
+    """
+    Tính coherence bằng scipy.signal.coherence (từng cặp kênh)
+    - Sử dụng scaling='spectrum' (không density) để tránh lỗi normalize
+    - nperseg nhỏ phù hợp epoch 2s
+    """
     ch, nT = epoch_chxT.shape
-    nperseg, noverlap = welch_params(fs, nT)
+    nperseg = min(256, nT)  # 256 điểm FFT cho Fs=500, epoch 2s
 
-    # 1. Tính mẫu số (Auto Power Spectra)
-    freqs, Sxx = welch(
-        epoch_chxT,
-        fs=fs,
-        nperseg=nperseg,
-        noverlap=noverlap,
-        axis=-1,
-        detrend="constant",
-        scaling="density",
-        return_onesided=True,
-    )
+    coh = np.full((len(bands), ch, ch), 1.0, dtype=COH_DTYPE)
 
-    # Pre-calculate band indices
-    band_idxs = []
-    for _, f1, f2 in COH_BANDS:
-        idx = np.where((freqs >= f1) & (freqs <= f2))[0]
-        band_idxs.append(idx)
-
-    B = len(COH_BANDS)
-    coh = np.zeros((B, ch, ch), dtype=np.float32)
-    
-    # Fill diagonal
-    for b in range(B):
-        np.fill_diagonal(coh[b], 1.0)
-
-    # 2. Tính Cross Spectra từng cặp
     for i in range(ch):
-        xi = epoch_chxT[i]
         for j in range(i + 1, ch):
-            xj = epoch_chxT[j]
-            _, Sxy = csd(
-            xi, xj,
-            fs=fs,
-            nperseg=nperseg,
-            noverlap=noverlap,
-            detrend="constant",
-            scaling="density",
-            return_onesided=True,
-        )
+            f, cxy = coherence(
+                epoch_chxT[i],
+                epoch_chxT[j],
+                fs=fs,
+                nperseg=nperseg,
+                noverlap=nperseg // 2,
+                window='hann',
+                detrend='constant',
+            )
 
-        # correct denom
-        den = np.sqrt(np.abs(Sxx[i]) * np.abs(Sxx[j])) + EPS
+            for b, (_, f_low, f_high) in enumerate(bands):
+                idx = np.where((f >= f_low) & (f <= f_high))[0]
+                if idx.size > 0:
+                    mean_coh = np.mean(cxy[idx])
+                    coh[b, i, j] = mean_coh
+                    coh[b, j, i] = mean_coh
 
-        # coherence
-        cxy = (np.abs(Sxy) / den)**2
-        cxy = np.clip(cxy, 0.0, 1.0)
-
-        for b, idx in enumerate(band_idxs):
-            if idx.size:
-                coh[b, i, j] = float(np.mean(cxy[idx]))
-                coh[b, j, i] = coh[b, i, j]
-                
-    return coh # Shape (Bands, Ch, Ch)
+    return coh

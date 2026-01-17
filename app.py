@@ -11,7 +11,7 @@ from system.system import EEGSystem
 
 # ============ MODELS ============
 from predictor.cnn_tab_model import CNNTabModel
-from predictor.mlp_EC_model import MLPECModel
+# from predictor.mlp_model import MLPECModel
 
 
 # ==========================================
@@ -76,7 +76,7 @@ def load_registry():
         },
         "CNN": {},
         "Tab": {},
-        "MLP": {"EC": MLPECModel()},
+        # "MLP": {"EC": MLPECModel()},
         "SVM": {},
         "XGBoost": {},
         "Random Forest": {},
@@ -296,33 +296,33 @@ if files and st.button("🚀 Chạy chẩn đoán", type="primary"):
 
     st.success(f"✔ Xử lý xong trong {dt:.2f}s")
 
-    # cache = rs["cache"]
+    cache = rs["cache"]
 
-    # for cond in cache:
-    #     st.markdown(f"### 🧩 Debug features `{cond}`")
-    #     X_psd = cache[cond]["psd"]
-    #     X_coh = cache[cond]["coh"]
-    #     st.markdown("#### 🔬 Coherence Heatmaps (band-averaged)")
+    for cond in cache:
+        st.markdown(f"### 🧩 Debug features `{cond}`")
+        X_psd = cache[cond]["psd"]
+        X_coh = cache[cond]["coh"]
+        st.markdown("#### 🔬 Coherence Heatmaps (band-averaged)")
 
-    #     bands = ["delta","theta","alpha","beta","gamma"]
+        bands = ["delta","theta","alpha","beta","gamma"]
 
-    #     import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt
 
-    #     # pick first epoch
-    #     coh0 = X_coh[0]  # (ch,ch,B)
-    #     ch = coh0.shape[0]
+        # pick first epoch
+        coh0 = X_coh[0]  # (ch,ch,B)
+        ch = coh0.shape[0]
 
-    #     fig, axes = plt.subplots(1, coh0.shape[-1], figsize=(3*coh0.shape[-1]+2, 4))
-    #     for b in range(coh0.shape[-1]):
-    #         ax = axes[b] if coh0.shape[-1]>1 else axes
-    #         im = ax.imshow(coh0[:,:,b], vmin=0, vmax=1)
-    #         ax.set_title(bands[b])
-    #         fig.colorbar(im, ax=ax, fraction=0.046)
+        fig, axes = plt.subplots(1, coh0.shape[-1], figsize=(3*coh0.shape[-1]+2, 4))
+        for b in range(coh0.shape[-1]):
+            ax = axes[b] if coh0.shape[-1]>1 else axes
+            im = ax.imshow(coh0[:,:,b], vmin=0, vmax=1)
+            ax.set_title(bands[b])
+            fig.colorbar(im, ax=ax, fraction=0.046)
 
-    #     st.pyplot(fig)
+        st.pyplot(fig)
 
-    #     st.write("X_psd:", X_psd.shape, "mean:", np.mean(X_psd), "min:", np.min(X_psd), "max:", np.max(X_psd))
-    #     st.write("X_coh:", X_coh.shape, "mean:", np.mean(X_coh), "min:", np.min(X_coh), "max:", np.max(X_coh))
+        st.write("X_psd:", X_psd.shape, "mean:", np.mean(X_psd), "min:", np.min(X_psd), "max:", np.max(X_psd))
+        st.write("X_coh:", X_coh.shape, "mean:", np.mean(X_coh), "min:", np.min(X_coh), "max:", np.max(X_coh))
 
 
     # results
