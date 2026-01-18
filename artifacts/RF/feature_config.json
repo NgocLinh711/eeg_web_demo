@@ -1,0 +1,6 @@
+{
+  "USE_PSD": true,
+  "USE_COH": false,
+  "COH_UPPER_TRI": true,
+  "voting": "mean_prob"
+}

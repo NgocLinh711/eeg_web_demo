@@ -9,9 +9,11 @@ import matplotlib.pyplot as plt
 
 from system.system import EEGSystem
 from predictor.cnn_tab_model import CNNTabModel
+from predictor.cnn_model import CNNModel
 from predictor.mlp_model import MLPModel
 from predictor.svm_model import SVMModel
 from predictor.tab_model import TabModel
+from predictor.xgboost_model import XGBModel
 
 
 # ==========================================
@@ -75,7 +77,10 @@ def load_registry():
             "EO": CNNTabModel(condition="EO", debug=False),
             "EC": CNNTabModel(condition="EC", debug=False),
         },
-        "CNN": {},
+        "CNN": {
+            "EO": CNNModel(condition="EO", debug=False),
+            "EC": CNNModel(condition="EC", debug=False),
+        },
         "Tab": {
             "EO": TabModel(condition="EO", debug=False),
             "EC": TabModel(condition="EC", debug=False),
@@ -88,7 +93,10 @@ def load_registry():
             # "EO": SVMModel(condition="EO"),
             "EC": SVMModel(condition="EC"),
         },
-        "XGBoost": {},
+        "XGBoost": {
+            "EO": XGBModel(condition="EO", debug=False),
+            "EC": XGBModel(condition="EC", debug=False),
+        },
         "Random Forest": {},
     }
 

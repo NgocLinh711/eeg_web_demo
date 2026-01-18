@@ -193,6 +193,17 @@ class EEGSystem:
                 "seg": seg_last,
                 "raw": raw_last,
             }
+            # after cache building
+            X_coh = cache[cond]["coh"]
+            if self.debug or True:   # force always print
+                print("=== COHERENCE DEBUG ===")
+                print(f"[COH] cond={cond} shape={X_coh.shape}")
+                print(f"[COH] stats: mean={X_coh.mean():.4f} std={X_coh.std():.4f} min={X_coh.min():.4f} max={X_coh.max():.4f}")
+                print("bands = [delta, theta, alpha, beta, gamma]")
+                for bi, bn in enumerate(["delta","theta","alpha","beta","gamma"]):
+                    print(f"[COH] band {bn} mean={X_coh[:,:,:,bi].mean():.4f}")
+                print("=== END ===")
+
 
         for cond, models in self.models.items():
             if cond not in cache:
@@ -200,6 +211,38 @@ class EEGSystem:
 
             X_psd = cache[cond]["psd"]
             X_coh = cache[cond]["coh"]
+
+            if self.debug or True:   # force print
+                print("=== PSD DEBUG ===")
+                print(f"[PSD] cond={cond} shape={X_psd.shape}")
+                print(f"[PSD] dtype={X_psd.dtype}")
+                print(f"[PSD] stats: mean={X_psd.mean():.4f} std={X_psd.std():.4f} "
+                    f"min={X_psd.min():.4f} max={X_psd.max():.4f}")
+
+                # EPC: ch×freq
+                E, C, F = X_psd.shape
+                print(f"[PSD] epochs={E} channels={C} freqs={F}")
+
+                # freq bands summary
+                bands = [
+                    ("delta", 1, 4),
+                    ("theta", 4, 8),
+                    ("alpha", 8, 13),
+                    ("beta", 13, 30),
+                    ("gamma", 30, 45),
+                ]
+                freqs = np.linspace(0, self.fs/2, F)
+
+                for bn, lo, hi in bands:
+                    idx = np.where((freqs>=lo)&(freqs<=hi))[0]
+                    if len(idx)>0:
+                        bmean = X_psd[:,:,idx].mean()
+                        print(f"[PSD] band {bn:6s}: mean={bmean:.4f}")
+
+                # sample few channel curves (mean over epochs)
+                for ch in range(min(4,C)):
+                    print(f"[PSD] ch{ch} first5:", X_psd[0,ch,:5], "...")
+
 
             for model in models:
                 needed = model.inputs()

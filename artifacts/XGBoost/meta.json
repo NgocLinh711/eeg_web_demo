@@ -1,0 +1,9 @@
+{
+  "feature_dim": 2314,
+  "dtype": "float32",
+  "n_train_epochs": 21534,
+  "n_test_epochs": 4557,
+  "model": "XGBoost",
+  "task": "3-class classification",
+  "level": "epoch-level"
+}

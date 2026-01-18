@@ -1,0 +1,14 @@
+{
+  "USE_PSD": true,
+  "USE_COH": false,
+  "COH_UPPER_TRI": true,
+  "PSD_KEY": "psd",
+  "COH_KEY": null,
+  "num_classes": 3,
+  "classes": [
+    "ADHD",
+    "MDD",
+    "SMC"
+  ],
+  "trained_cond": "EO"
+}
