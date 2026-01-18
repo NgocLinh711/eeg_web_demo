@@ -3,7 +3,6 @@ from keras import layers
 from predictor.base import BaseModel
 
 ARTIFACTS_DIR = "artifacts/MLP"
-MODEL_FILE = "mlp_EC.best.keras"
 
 @tf.keras.utils.register_keras_serializable(package="Custom")
 class CatSlice(layers.Layer):
@@ -29,7 +28,7 @@ class EmptyFeatures(layers.Layer):
 
 
 class MLPModel(BaseModel):
-    def __init__(self, debug=False):
+    def __init__(self, condition="EO", debug=False):
         assert condition in ["EO", "EC"]
 
         name = f"MLP_{condition}"
@@ -38,7 +37,12 @@ class MLPModel(BaseModel):
         self.debug = debug
         self.condition = condition
 
-        print("🔄 Loading MLP (EC)...")
+        MODEL_FILE = (
+            "mlp_EO.best.keras" if condition=="EO"
+            else "mlp_EC.best.keras"
+        )
+
+        print("🔄 Loading MLP ({condition})...")
 
         self.model = tf.keras.models.load_model(
             os.path.join(ARTIFACTS_DIR, MODEL_FILE),

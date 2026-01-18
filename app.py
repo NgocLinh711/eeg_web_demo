@@ -11,7 +11,8 @@ from system.system import EEGSystem
 
 # ============ MODELS ============
 from predictor.cnn_tab_model import CNNTabModel
-# from predictor.mlp_model import MLPECModel
+from predictor.mlp_model import MLPModel
+from predictor.svm_model import SVMModel
 
 
 # ==========================================
@@ -76,8 +77,14 @@ def load_registry():
         },
         "CNN": {},
         "Tab": {},
-        # "MLP": {"EC": MLPECModel()},
-        "SVM": {},
+        "MLP": {
+            # "EO": MLPModel(condition="EO", debug=False),
+            "EC": MLPModel(condition="EC", debug=False),
+        },
+        "SVM": {  # <-- Thêm block này
+            # "EO": SVMModel(condition="EO"),
+            "EC": SVMModel(condition="EC"),
+        },
         "XGBoost": {},
         "Random Forest": {},
     }
