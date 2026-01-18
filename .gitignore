@@ -84,5 +84,3 @@ utils/__pycache__/
 
 predictor/__pycache__
 predictor/*.pyc
-
-artifacts/RF/*.pkl
