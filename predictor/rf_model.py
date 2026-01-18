@@ -1,74 +1,46 @@
-# predictor/rf_model.py
-import os
-import json
-import joblib
+import os, json, joblib
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
 from predictor.base import BaseModel
 
+ARTIFACTS_DIR = "artifacts/RF"
+
 class RFModel(BaseModel):
-    """
-    RandomForest inference for EEG
-    Compatible w/ EEGSystem (system/system.py)
-    """
-
-    def __init__(self, condition="EC", artifact_root="web_demo/model", debug=False):
-        assert condition in ["EO", "EC"]
-
+    def __init__(self, condition="EC", debug=False):
+        assert condition in ["EO","EC"]
         self.condition = condition
         self.debug = debug
-
-        # model naming convention like CNNTab + XGB
-        name = f"RF_{condition}"
+        name = f"RF({condition})"
         super().__init__(name, n_classes=3)
 
-        self.artifact_dir = artifact_root
-
-        MODEL_FILE = f"rf_{condition.lower()}.pkl"
-        model_path = os.path.join(self.artifact_dir, MODEL_FILE)
-
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"RFModel missing: {model_path}")
-
-        print(f"🔄 Loading RandomForest ({condition}) from: {model_path}")
+        # load model
+        model_path = os.path.join(ARTIFACTS_DIR, f"rf_{condition}.pkl")
         self.model = joblib.load(model_path)
 
-        # load encoder (shared for both EO/EC)
-        le_path = os.path.join(self.artifact_dir, "label_encoder.pkl")
-        self.le = joblib.load(le_path)
+        # load label encoder
+        self.le = joblib.load(os.path.join(ARTIFACTS_DIR, "label_encoder.pkl"))
 
-        # config
-        with open(os.path.join(self.artifact_dir, "feature_config.json"), "r") as f:
-            self.config = json.load(f)
+        # load feature config
+        with open(os.path.join(ARTIFACTS_DIR, "feature_config.json")) as f:
+            cfg = json.load(f)
 
-        with open(os.path.join(self.artifact_dir, "meta.json"), "r") as f:
-            self.meta = json.load(f)
+        self.classes = cfg["classes"]
+        self.feature_dim = cfg["feature_dim"]
+        self.use_psd = cfg["USE_PSD"]
 
-        self.classes = self.config["classes"]
-        self.feature_dim = self.meta["feature_dim"]
-        self.use_psd = self.config["USE_PSD"]
-
-        if self.debug:
-            print(f"[RF-{condition}] feat_dim={self.feature_dim}, classes={self.classes}")
-
-    # RF chỉ cần PSD, không demog + không coherence
     def inputs(self):
         return {"psd"}
 
-    def _flatten_psd(self, arr):
-        # arr: (epochs, ch, freq)
-        return arr.reshape(arr.shape[0], -1).astype(np.float32)
+    def _flat(self, psd):
+        return psd.reshape(psd.shape[0], -1).astype(np.float32)
 
-    def predict_proba(self, *, psd=None, **kwargs):
+    def predict_proba(self, *, psd=None, **_):
         if psd is None:
-            raise ValueError("RFModel requires 'psd' input")
+            raise ValueError("RFModel requires PSD input")
 
-        X = self._flatten_psd(psd)
+        X = self._flat(psd)
 
         if X.shape[1] != self.feature_dim:
-            raise ValueError(
-                f"[RF-{self.condition}] mismatch: expected={self.feature_dim}, got={X.shape[1]}"
-            )
+            raise ValueError(f"feature mismatch: {X.shape[1]} vs {self.feature_dim}")
 
         prob = self.model.predict_proba(X)
         return prob, self.classes

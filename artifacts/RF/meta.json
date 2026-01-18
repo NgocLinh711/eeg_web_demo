@@ -1,0 +1,9 @@
+{
+  "model": "RandomForest",
+  "task": "3-class EEG",
+  "feature": "PSD",
+  "level": "epoch",
+  "condition": "EC",
+  "epoch_sec": 2.0,
+  "backend": "scikit-learn"
+}

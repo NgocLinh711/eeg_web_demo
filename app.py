@@ -14,6 +14,7 @@ from predictor.mlp_model import MLPModel
 from predictor.svm_model import SVMModel
 from predictor.tab_model import TabModel
 from predictor.xgboost_model import XGBModel
+from predictor.rf_model import RFModel
 
 
 # ==========================================
@@ -97,7 +98,10 @@ def load_registry():
             "EO": XGBModel(condition="EO", debug=False),
             "EC": XGBModel(condition="EC", debug=False),
         },
-        "Random Forest": {},
+        "Random Forest": {
+            "EO": RFModel(condition="EO", debug=False),
+            "EC": RFModel(condition="EC", debug=False),
+        },
     }
 
 

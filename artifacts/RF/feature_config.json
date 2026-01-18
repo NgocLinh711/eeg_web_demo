@@ -1,6 +1,15 @@
 {
   "USE_PSD": true,
   "USE_COH": false,
-  "COH_UPPER_TRI": true,
-  "voting": "mean_prob"
+  "COH_UPPER_TRI": false,
+  "feature_dim": 2314,
+  "classes": [
+    "ADHD",
+    "MDD",
+    "SMC"
+  ],
+  "num_classes": 3,
+  "trained_conditions": [
+    "EC"
+  ]
 }
