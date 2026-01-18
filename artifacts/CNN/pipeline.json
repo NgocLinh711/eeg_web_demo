@@ -1,0 +1,8 @@
+{
+  "normalize_gender": "int_round or NA",
+  "normalize_well": "int_round or NA",
+  "fillna": "train_mean",
+  "scaler": "StandardScaler",
+  "nan_to_num": true,
+  "subject_aggregation": "mean_prob"
+}

@@ -88,14 +88,24 @@ class EEGSystem:
 
         for model in self.models:
             needed = model.inputs()
+
+            if self.debug:
+                self.dbg(f"[SYSTEM] >>> model: {model.name}")
+                self.dbg(f"[SYSTEM]     needed inputs = {needed}")
+
             kwargs = {}
             if "psd" in needed: kwargs["psd"] = X_psd
             if "coh" in needed: kwargs["coh"] = X_coh
             if {"cont","cat"}.issubset(needed):
+                if self.debug:
+                    self.dbg("[SYSTEM]     demographic => forwarded")
                 kwargs.update(dict(
                     age=age, gender=gender,
                     education=education, sleep=sleep, well=well
                 ))
+
+            if self.debug:
+                self.dbg(f"[SYSTEM]     kwargs keys = {list(kwargs.keys())}")
 
             proba, classes = model.predict_proba(**kwargs)
             idx = model.hard_vote(proba)
@@ -193,15 +203,23 @@ class EEGSystem:
 
             for model in models:
                 needed = model.inputs()
+                if self.debug:
+                    self.dbg(f"[MULTI] >>> model: {model.name} ({cond})")
+                    self.dbg(f"[MULTI]     needed inputs = {needed}")
+                
                 kwargs = {}
-
                 if "psd" in needed: kwargs["psd"] = X_psd
                 if "coh" in needed: kwargs["coh"] = X_coh
                 if {"cont","cat"}.issubset(needed):
+                    if self.debug:
+                        self.dbg("[MULTI]     demographic => forwarded")
                     kwargs.update(dict(
                         age=age, gender=gender,
                         education=education, sleep=sleep, well=well
                     ))
+
+                if self.debug:
+                    self.dbg(f"[MULTI]     kwargs keys = {list(kwargs.keys())}")
 
                 proba, classes = model.predict_proba(**kwargs)
                 idx = model.hard_vote(proba)

@@ -1,0 +1,12 @@
+{
+  "classes": [
+    "ADHD",
+    "MDD",
+    "SMC"
+  ],
+  "label_encoder": {
+    "ADHD": 0,
+    "MDD": 1,
+    "SMC": 2
+  }
+}

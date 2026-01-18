@@ -11,6 +11,7 @@ from system.system import EEGSystem
 from predictor.cnn_tab_model import CNNTabModel
 from predictor.mlp_model import MLPModel
 from predictor.svm_model import SVMModel
+from predictor.tab_model import TabModel
 
 
 # ==========================================
@@ -75,7 +76,10 @@ def load_registry():
             "EC": CNNTabModel(condition="EC", debug=False),
         },
         "CNN": {},
-        "Tab": {},
+        "Tab": {
+            "EO": TabModel(condition="EO", debug=False),
+            "EC": TabModel(condition="EC", debug=False),
+        },
         "MLP": {
             # "EO": MLPModel(condition="EO", debug=False),
             "EC": MLPModel(condition="EC", debug=False),
@@ -222,7 +226,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    model_types = st.multiselect("Loại mô hình", ["CNN-Tab"], default=["CNN-Tab"])
+    model_types = st.multiselect("Loại mô hình", 
+                                 ["CNN-Tab", "CNN", "Tab", "MLP", "SVM", "XGBoost", "Random Forest"],
+                                    default=["CNN-Tab"])
     condition = st.selectbox("Điều kiện EEG", ["EO","EC","Both"])
 
 run_btn = st.button("🚀 Chẩn đoán", type="primary")
@@ -357,10 +363,11 @@ if st.session_state.rs is not None:
         st.metric("Predict", r["pred_label"])
         proba=r["epoch_probs"]
         classes=r["classes"]
-        epoch_preds=np.argmax(proba,1)
-        conf=(epoch_preds==r["pred_idx"]).mean()
-        st.metric("Confidence",f"{conf*100:.2f}%")
-
+        epoch_preds = np.argmax(proba, 1)
+        hit = (epoch_preds == r["pred_idx"]).sum()
+        E = len(epoch_preds)
+        conf = hit / E
+        st.metric("Epoch Hits", f"{hit}/{E} (Confidence: {conf:.2%})")
         dfp=pd.DataFrame(proba,columns=classes)
         st.dataframe(dfp.style.highlight_max(axis=1), use_container_width=True)
 
@@ -369,8 +376,8 @@ if st.session_state.rs is not None:
             "Model": r["model"],
             "Predict": r["pred_label"],
             "GT (TSV)": diagnosis,
-            "Confidence": f"{conf*100:.1f}%"
-        })
+            "Epoch Hits": f"{hit}/{E}"        
+            })
 
     st.subheader("📌 FINAL SUMMARY")
     st.dataframe(pd.DataFrame(summary), use_container_width=True)

@@ -1,0 +1,29 @@
+{
+  "model": "COH_ONLY",
+  "input": {
+    "coh_shape": [
+      26,
+      26,
+      5
+    ],
+    "tensor_name": "coh"
+  },
+  "voting": "mean_prob",
+  "cont_cols": [
+    "age",
+    "education",
+    "sleep"
+  ],
+  "cat_cols": [
+    "gender",
+    "well"
+  ],
+  "label_classes": [
+    "ADHD",
+    "MDD",
+    "SMC"
+  ],
+  "num_classes": 3,
+  "psd_key": null,
+  "coh_key": "coh"
+}

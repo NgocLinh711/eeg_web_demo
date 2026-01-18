@@ -1,0 +1,16 @@
+{
+  "version": "tab_psd_cat_cont",
+  "label_col": "indication",
+  "subj_col": "participants_ID",
+  "cond_col": "cond",
+  "cont_cols": [
+    "age",
+    "education",
+    "sleep"
+  ],
+  "cat_cols": [
+    "gender",
+    "well"
+  ],
+  "num_classes": 3
+}

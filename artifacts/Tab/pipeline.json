@@ -1,0 +1,17 @@
+{
+  "PSD_KEY": "psd",
+  "expected_psd_shape": [
+    26,
+    89,
+    1
+  ],
+  "cat_cols": [
+    "gender",
+    "well"
+  ],
+  "cont_cols": [
+    "age",
+    "education",
+    "sleep"
+  ]
+}
