@@ -363,7 +363,7 @@ if files and run_btn:
         cd = detect_cond(f.name)
         if cd: cond_files[cd].append(f)
 
-    system = EEGSystem(models=selected, fs=500, epoch_sec=2.0, debug=False)
+    system = EEGSystem(models=selected, fs=500, epoch_sec=2.0, debug=True)
 
     with st.spinner("⏳ Đang xử lý EEG + chạy dự đoán..."):
         t0 = time.time()
@@ -371,7 +371,7 @@ if files and run_btn:
             cond_files=cond_files,
             age=age, gender=gender,
             education=education,
-            sleep=sleep, well=well
+            sleep=sleep, well=well   
         )
         dt = time.time()-t0
 

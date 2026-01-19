@@ -1,4 +1,4 @@
-# predictor/cnn_coh_model.py
+# predictor/cnn_model.py
 
 import os, json, numpy as np, tensorflow as tf
 from predictor.base import BaseModel

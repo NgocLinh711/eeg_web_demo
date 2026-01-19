@@ -1,3 +1,4 @@
+# system/system.py
 import os
 import time
 import numpy as np
@@ -5,6 +6,9 @@ import numpy as np
 from eeg.preprocessing import autopreprocess, segment_and_reference
 from eeg.feature_extraction import compute_psd_epoch, compute_coh_epoch
 from predictor.base import BaseModel
+
+import warnings
+warnings.filterwarnings("ignore")
 
 FS = 500.0
 WELCH_WIN_SEC = 2.0
@@ -118,6 +122,8 @@ class EEGSystem:
         education,
         sleep,
         well,
+        debug_coh_per_file=False   # <= optional flag
+
     ):
         results = []
         cache = {}
@@ -129,7 +135,7 @@ class EEGSystem:
         for cond, flist in cond_files.items():
             if not flist: continue
 
-            print(f"\n=== MULTI-CONDITION START: {cond} ===")
+            print(f"\n=== START CONDITION: {cond} ===")
             print(f"[{cond}] n_files = {len(flist)}")
 
             session_psd, session_coh = [], []
@@ -139,72 +145,113 @@ class EEGSystem:
                 fname = f"__{f.name}"
                 print(f"[{cond}] >>> loading {idx+1}/{len(flist)}: {f.name}")
 
+                # save temp file
                 with open(fname,"wb") as g:
                     g.write(f.getbuffer())
 
+                # preprocess + segment
                 ds = autopreprocess(fname, self.fs, print_debug=self.debug)
                 seg, err = segment_and_reference(ds, self.epoch_sec, self.fs, print_debug=self.debug)
                 os.remove(fname)
                 if err: return None, err
 
+                # keep last for reference
                 seg_last, raw_last = seg, ds
                 print(f"[{cond}] file {idx+1}: epochs = {seg.shape[0]}")
 
+                # compute features
                 psd_list, coh_list = [], []
                 for i in range(seg.shape[0]):
                     ep = seg[i]
                     psd = compute_psd_epoch(ep, fs=self.fs)
                     coh = compute_coh_epoch(ep, fs=self.fs, bands=COH_BANDS)
-                    if coh.ndim == 2: coh = coh[..., np.newaxis]
-                    elif coh.shape[0] <= 10: coh = np.transpose(coh,(1,2,0))
+                    
+                    # reshape coh
+                    if coh.ndim == 2: 
+                        coh = coh[..., np.newaxis]
+                    elif coh.shape[0] <= 10: 
+                        coh = np.transpose(coh,(1,2,0))
 
                     psd_list.append(psd)
                     coh_list.append(coh)
 
-                session_psd.append(np.array(psd_list))
-                session_coh.append(np.array(coh_list))
+                psd_arr = np.array(psd_list)
+                coh_arr = np.array(coh_list)
 
-            # concat all
+                # optional per-file debug (off by default)
+                if self.debug and debug_coh_per_file:
+                    print(f"[{cond}] COH(file) shape={coh_arr.shape} mean={coh_arr.mean():.4f}")
+
+                session_psd.append(psd_arr)
+                session_coh.append(coh_arr)
+
+            # concat all sessions
             cache[cond] = {
                 "psd": np.concatenate(session_psd, axis=0),
                 "coh": np.concatenate(session_coh, axis=0),
                 "seg": seg_last,
                 "raw": raw_last,
             }
+
             print(f"[{cond}] TOTAL epochs = {cache[cond]['psd'].shape[0]}")
 
         # =============================
-        # PREDICT FOR EACH CONDITION
+        # PREDICT + OPTIONAL DEBUG
         # =============================
         for cond, models in self.models.items():
-            if cond not in cache: continue
+            if cond not in cache: 
+                continue
 
             X_psd = cache[cond]["psd"]
             X_coh = cache[cond]["coh"]
 
-            # --- PSD debug ---
-            print(f"\n=== PSD DEBUG ({cond}) ===")
-            print(f"[PSD] shape = {X_psd.shape}")
-            print(f"[PSD] mean={X_psd.mean():.4f}, std={X_psd.std():.4f}, min={X_psd.min():.4f}, max={X_psd.max():.4f}")
+            # --- DEBUG section (only once per condition)
+            if self.debug:
+                print(f"\n=== DEBUG ({cond}) ===")
 
-            E,C,F = X_psd.shape
-            print(f"[PSD] epochs={E}, channels={C}, freqs={F}")
+                # COH
+                print(f"[COH] shape={X_coh.shape}")
+                print(f"[COH] stats: mean={X_coh.mean():.4f}, std={X_coh.std():.4f}, "
+                    f"min={X_coh.min():.4f}, max={X_coh.max():.4f}")
 
-            freqs = np.linspace(0, self.fs/2, F)
-            for bn, lo, hi in COH_BANDS:
-                idx = np.where((freqs>=lo)&(freqs<=hi))[0]
-                if len(idx)>0:
-                    bmean = X_psd[:,:,idx].mean()
-                    print(f"[PSD] {bn:6s}: mean={bmean:.4f}")
+                band_names = ["delta","theta","alpha","beta","gamma"]
+                for bi, bn in enumerate(band_names):
+                    b = X_coh[:,:,:,bi]
+                    print(f"[COH] {bn:6s}: mean={b.mean():.4f}, min={b.min():.4f}, max={b.max():.4f}")
 
-            # preview channels
-            print("--- PSD sample per channel ---")
-            for ch in range(min(6,C)):
-                print(f"  {CHANNEL_LABELS[ch]:>3s}: {X_psd[0,ch,:5]}")
+                # preview (optional)
+                bidx = 2  # alpha
+                b = X_coh[:,:,:,bidx]
+                print(f"\n[COH] preview (band={band_names[bidx]}):")
+                pairs = [(0,1), (0,3)]  # Fp1-Fp2, Fp1-F3
+                for (i,j) in pairs:
+                    arr = b[:, i, j]
+                    print(f"    {CHANNEL_LABELS[i]}-{CHANNEL_LABELS[j]}: {np.round(arr[:5],3)}")
+
+                # === PSD ===
+                print(f"\n[PSD] shape={X_psd.shape}")
+                print(f"[PSD] stats: mean={X_psd.mean():.4f}, std={X_psd.std():.4f}, "
+                    f"min={X_psd.min():.4f}, max={X_psd.max():.4f}")
+
+                E,C,F = X_psd.shape
+                freqs = np.linspace(0, self.fs/2, F)
+
+                for bn, lo, hi in COH_BANDS:
+                    idx = np.where((freqs>=lo)&(freqs<=hi))[0]
+                    if len(idx)>0:
+                        b = X_psd[:,:,idx]
+                        print(f"[PSD] {bn:6s}: mean={b.mean():.4f}, min={b.min():.4f}, max={b.max():.4f}")
+
+                # preview channel
+                ch = 0
+                print(f"\n[PSD] preview channel: {CHANNEL_LABELS[ch]}")
+                print(f"    freqs→ {np.round(freqs[:5],1)}")
+                print(f"    values→ {np.round(X_psd[0,ch,:5],3)}")
 
             # =============================
             # TIMING PREDICT LOOP
             # =============================
+            print(f"\n=== MODEL ({cond}) ===")
             cond_total = 0.0
 
             for model in models:
@@ -244,10 +291,14 @@ class EEGSystem:
 
             print(f"[{cond}] TOTAL MODEL TIME = {cond_total:.1f}ms\n")
 
+        # =============================
+        # DONE PIPELINE
+        # =============================
         pipeline_ms = (time.perf_counter()-t0_pipeline)*1000
-        print(f"=== PIPELINE DONE in {pipeline_ms:.1f}ms ===")
+        print(f"\n=== PIPELINE DONE in {pipeline_ms:.1f} ms ===")
 
         return {
             "results": results,
             "cache": cache,
+            "pipeline_ms": round(pipeline_ms,1),
         }, None
