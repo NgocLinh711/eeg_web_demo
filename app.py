@@ -5,7 +5,6 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["XLA_FLAGS"] = "--xla_cpu_use_xla=false"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import streamlit as st
 import numpy as np
