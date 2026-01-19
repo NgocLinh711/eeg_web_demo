@@ -26,9 +26,94 @@ st.set_page_config(
     page_icon="🧠"
 )
 
-st.title("🧠 Multimodal EEG Psychiatric Diagnostic System")
-st.markdown("TDBRAIN TSV + EEG Multi-Condition + CNN-Tab")
-st.markdown("---")
+# ==========================================
+# HEADER W/ LEFT + RIGHT IMAGE
+# ==========================================
+# colL, colR = st.columns([1,1])
+
+# with colL:
+#     st.image("assets/logo_left.png", use_column_width=True)
+
+# with colR:
+#     st.image("assets/logo_right.png", use_column_width=True)
+
+import base64
+
+def img_to_b64(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+l = img_to_b64("assets/logo_left.png")
+r = img_to_b64("assets/logo_right.png")
+
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <img src="data:image/png;base64,{l}" style="height:80px;">
+        <img src="data:image/png;base64,{r}" style="height:80px;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown("<hr style='border:1px solid #444;'>", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+header, hr {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# st.title("🧠 Multimodal EEG Psychiatric Diagnostic System")
+# st.markdown("---")
+
+st.markdown("""
+<style>
+.help-box {
+    background:#f7faff;
+    padding:10px 14px;
+    border-radius:8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("### 📘 Hướng dẫn sử dụng hệ thống")
+
+colL, colR = st.columns([1.2, 1])
+
+with colL:
+    st.markdown("""
+    **Dữ liệu đầu vào:**
+    - Dữ liệu EEG .csv (chuẩn TDBRAIN)
+    - Có thể upload EO / EC hoặc cả hai
+
+    **Các bước thao tác:**
+    1. Tải lên dữ liệu EEG ở mục `Upload EEG CSV files`
+    2. Kiểm tra thông tin lâm sàng được tự động điền từ TSV (nếu có)
+    3. Nhập bổ sung thông tin ở *Sidebar*
+    4. Lựa chọn mô hình dự đoán và điều kiện EEG
+    5. Nhấn **Chẩn đoán** để chạy pipeline
+    6. Quan sát kết quả trên:
+       - Tín hiệu EEG sau tiền xử lý 
+       - Mật độ phổ công suất (PSD)  
+       - Ma trận kết nối chức năng (coherence)  
+       - Thống kê dự đoán mô hình
+    """)
+
+with colR:
+    st.markdown("""
+    **Lưu ý:**
+    - Hệ thống hỗ trợ phân loại 3 nhóm lâm sàng:
+      `Rối loạn tăng động giảm chú ý (ADHD) / Rối loạn trầm cảm (MDD) / Rối loạn nhận thức chủ quan (SMC)`
+    - PSD và Coherence được tính theo **từng epoch**
+    - Cho phép lựa chọn điều kiện đo EO / EC hoặc đồng thời
+    - Cho phép chạy nhiều mô hình dự đoán song song
+    - Hỗ trợ cơ chế tự động điền thông tin lâm sàng từ file TSV
+    """)
+
 
 
 # ==========================================
@@ -87,11 +172,11 @@ def load_registry():
             "EC": TabModel(condition="EC", debug=False),
         },
         "MLP": {
-            # "EO": MLPModel(condition="EO", debug=False),
+            "EO": MLPModel(condition="EO", debug=False),
             "EC": MLPModel(condition="EC", debug=False),
         },
-        "SVM": {  # <-- Thêm block này
-            # "EO": SVMModel(condition="EO"),
+        "SVM": { 
+            "EO": SVMModel(condition="EO"),
             "EC": SVMModel(condition="EC"),
         },
         "XGBoost": {

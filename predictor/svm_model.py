@@ -16,7 +16,7 @@ class SVMModel(BaseModel):
         ARTIFACTS_DIR = f"artifacts/SVM" 
         
         self.model = joblib.load(os.path.join(ARTIFACTS_DIR, f"svm_{condition}_final.joblib"))
-        self.scaler = joblib.load(os.path.join(ARTIFACTS_DIR, f"scaler_{condition}.pkl"))
+        self.scaler = joblib.load(os.path.join(ARTIFACTS_DIR, f"scaler.pkl"))
         self.le = joblib.load(os.path.join(ARTIFACTS_DIR, "label_encoder.pkl"))
         
         print(f"✅ Loaded SVM {condition} (PSD only)")
