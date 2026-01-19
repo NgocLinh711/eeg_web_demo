@@ -1,6 +1,11 @@
 # ==========================================
 # app.py — EEG Diagnostic System + TSV + Clinical View
 # ==========================================
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["XLA_FLAGS"] = "--xla_cpu_use_xla=false"
+
 import streamlit as st
 import numpy as np
 import pandas as pd
