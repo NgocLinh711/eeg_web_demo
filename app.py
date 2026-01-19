@@ -161,39 +161,24 @@ def load_tsv():
 # ==========================================
 # MODEL REGISTRY
 # ==========================================
-@st.cache_resource
-def load_registry():
-    return {
-        "CNN-Tab": {
-            "EO": CNNTabModel(condition="EO", debug=False),
-            "EC": CNNTabModel(condition="EC", debug=False),
-        },
-        "CNN": {
-            "EO": CNNModel(condition="EO", debug=False),
-            "EC": CNNModel(condition="EC", debug=False),
-        },
-        "Tab": {
-            "EO": TabModel(condition="EO", debug=False),
-            "EC": TabModel(condition="EC", debug=False),
-        },
-        "MLP": {
-            "EO": MLPModel(condition="EO", debug=False),
-            "EC": MLPModel(condition="EC", debug=False),
-        },
-        "SVM": { 
-            "EO": SVMModel(condition="EO"),
-            "EC": SVMModel(condition="EC"),
-        },
-        "XGBoost": {
-            "EO": XGBModel(condition="EO", debug=False),
-            "EC": XGBModel(condition="EC", debug=False),
-        },
-        "Random Forest": {
-            "EO": RFModel(condition="EO", debug=False),
-            "EC": RFModel(condition="EC", debug=False),
-        },
-    }
+from functools import lru_cache
 
+# ---- cache only CPU models (safe) ----
+@lru_cache(maxsize=16)
+def get_cpu_model(model_type, cond):
+    if model_type == "SVM": return SVMModel(condition=cond)
+    if model_type == "XGBoost": return XGBModel(condition=cond)
+    if model_type == "Random Forest": return RFModel(condition=cond)
+    raise ValueError("Not CPU model")
+
+# ---- do NOT cache TF models ----
+def get_model(model_type, cond):
+    if model_type == "CNN-Tab": return CNNTabModel(condition=cond)
+    if model_type == "CNN":     return CNNModel(condition=cond)
+    if model_type == "Tab":     return TabModel(condition=cond)
+    if model_type == "MLP":     return MLPModel(condition=cond)
+    # CPU:
+    return get_cpu_model(model_type, cond)
 
 # ==========================================
 # FILE UPLOAD
@@ -351,12 +336,20 @@ if "rs" not in st.session_state:
 # PIPELINE EXECUTE
 # ==========================================
 if files and run_btn:
-    registry = load_registry()
-    selected = {"EO": [], "EC": []}
+    # try = load_registry()
+    # selected = {"EO": [], "EC": []}
 
+    # for m in model_types:
+    #     if condition in ["EO","Both"] and "EO" in registry[m]: selected["EO"].append(registry[m]["EO"])
+    #     if condition in ["EC","Both"] and "EC" in registry[m]: selected["EC"].append(registry[m]["EC"])
+
+    selected = {"EO": [], "EC": []}
     for m in model_types:
-        if condition in ["EO","Both"] and "EO" in registry[m]: selected["EO"].append(registry[m]["EO"])
-        if condition in ["EC","Both"] and "EC" in registry[m]: selected["EC"].append(registry[m]["EC"])
+        if condition in ["EO","Both"]:
+            selected["EO"].append(get_model(m,"EO"))
+        if condition in ["EC","Both"]:
+            selected["EC"].append(get_model(m,"EC"))
+
 
     cond_files = {"EO": [], "EC": []}
     for f in files:

@@ -1,23 +1,21 @@
-# system/system.py
-import os
-import time
+# =============================
+# system/system.py (Cloud-Safe v2)
+# =============================
+
+import os, time, warnings
 import numpy as np
+warnings.filterwarnings("ignore")
 
 from eeg.preprocessing import autopreprocess, segment_and_reference
 from eeg.feature_extraction import compute_psd_epoch, compute_coh_epoch
-from predictor.base import BaseModel
 
-import warnings
-warnings.filterwarnings("ignore")
+# Limit thread pools (RF/XGB/NumPy/BLAS)
+os.environ.setdefault("OMP_NUM_THREADS","1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS","1")
+os.environ.setdefault("MKL_NUM_THREADS","1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS","1")
 
 FS = 500.0
-WELCH_WIN_SEC = 2.0
-WELCH_OVERLAP = 0.5
-PSD_FMIN = 1.0
-PSD_FMAX = 45.0
-LOG_PSD = True
-EPS = 1e-12
-
 COH_BANDS = [
     ("delta", 1.0, 4.0),
     ("theta", 4.0, 8.0),
@@ -26,7 +24,6 @@ COH_BANDS = [
     ("gamma", 30.0, 45.0),
 ]
 
-# Channel labels (26 electrodes TDBRAIN)
 CHANNEL_LABELS = [
     "Fp1","Fp2","F7","F3","Fz","F4","F8",
     "FC5","FC1","FC2","FC6",
@@ -37,82 +34,22 @@ CHANNEL_LABELS = [
 
 
 class EEGSystem:
+
     def __init__(self, models, fs=500, epoch_sec=2.0, debug=False):
         """
-        models: dict e.g. {"EO":[model1,...], "EC":[model2,...]}
+        models = {"EO":[...], "EC":[...]}
         """
         self.models = models
         self.fs = fs
         self.epoch_sec = epoch_sec
         self.debug = debug
 
-    def dbg(self, *args):
-        if self.debug: print("[SYSTEM]", *args)
+    def dbg(self, *msg):
+        if self.debug: print("[SYSTEM]", *msg)
 
-    ##############################################################
-    # ORIGINAL SINGLE-FILE API (unchanged, no timing)
-    ##############################################################
-    def run(
-        self,
-        csv_path,
-        *,
-        age,
-        gender,
-        education,
-        sleep,
-        well,
-    ):
-        self.dbg("=== PIPELINE START ===")
-
-        ds = autopreprocess(csv_path, self.fs, print_debug=self.debug)
-        seg, err = segment_and_reference(ds, self.epoch_sec, self.fs, print_debug=self.debug)
-        if err: return None, err
-
-        n_epochs = seg.shape[0]
-        psd_list, coh_list = [], []
-
-        for i in range(n_epochs):
-            ep = seg[i]
-            psd = compute_psd_epoch(ep, fs=self.fs)
-            coh = compute_coh_epoch(ep, fs=self.fs, bands=COH_BANDS)
-            if coh.ndim == 2: coh = coh[..., np.newaxis]
-            elif coh.shape[0] <= 10: coh = np.transpose(coh, (1,2,0))
-
-            psd_list.append(psd)
-            coh_list.append(coh)
-
-        X_psd = np.array(psd_list)
-        X_coh = np.array(coh_list)
-
-        results = []
-        for model in self.models:
-            needed = model.inputs()
-            kwargs = {}
-            if "psd" in needed: kwargs["psd"] = X_psd
-            if "coh" in needed: kwargs["coh"] = X_coh
-            if {"cont","cat"}.issubset(needed):
-                kwargs.update(dict(
-                    age=age, gender=gender,
-                    education=education, sleep=sleep, well=well
-                ))
-
-            proba, classes = model.predict_proba(**kwargs)
-            idx = model.hard_vote(proba)
-
-            results.append({
-                "model": model.name,
-                "classes": classes,
-                "epoch_probs": proba,
-                "pred_idx": int(idx),
-                "pred_label": classes[int(idx)]
-            })
-
-        return {"n_epochs": n_epochs, "results": results}, None
-
-
-    ##############################################################
-    # MULTI-FILE MULTI-CONDITION (EO / EC)
-    ##############################################################
+    # ===========================================
+    # MULTI-CONDITION PIPELINE
+    # ===========================================
     def run_multi(
         self,
         cond_files,
@@ -122,85 +59,61 @@ class EEGSystem:
         education,
         sleep,
         well,
-        debug_coh_per_file=False   # <= optional flag
-
+        debug_coh_per_file=False
     ):
-        results = []
-        cache = {}
+        results, cache = [], {}
         t0_pipeline = time.perf_counter()
 
-        # =============================
-        # LOAD + CONCAT ALL FILES
-        # =============================
+        # -----------------------------
+        # 1) LOAD + FEATURE EXTRACTION
+        # -----------------------------
         for cond, flist in cond_files.items():
             if not flist: continue
-
-            print(f"\n=== START CONDITION: {cond} ===")
-            print(f"[{cond}] n_files = {len(flist)}")
+            self.dbg(f"\n=== CONDITION {cond} ==")
 
             session_psd, session_coh = [], []
             seg_last, raw_last = None, None
 
             for idx, f in enumerate(flist):
-                fname = f"__{f.name}"
-                print(f"[{cond}] >>> loading {idx+1}/{len(flist)}: {f.name}")
-
-                # save temp file
-                with open(fname,"wb") as g:
+                tmp = f"__{f.name}"
+                with open(tmp, "wb") as g:
                     g.write(f.getbuffer())
 
-                # preprocess + segment
-                ds = autopreprocess(fname, self.fs, print_debug=self.debug)
+                ds = autopreprocess(tmp, self.fs, print_debug=self.debug)
                 seg, err = segment_and_reference(ds, self.epoch_sec, self.fs, print_debug=self.debug)
-                os.remove(fname)
+                os.remove(tmp)
+
                 if err: return None, err
-
-                # keep last for reference
                 seg_last, raw_last = seg, ds
-                print(f"[{cond}] file {idx+1}: epochs = {seg.shape[0]}")
 
-                # compute features
                 psd_list, coh_list = [], []
-                for i in range(seg.shape[0]):
-                    ep = seg[i]
+                for ep in seg:
                     psd = compute_psd_epoch(ep, fs=self.fs)
                     coh = compute_coh_epoch(ep, fs=self.fs, bands=COH_BANDS)
-                    
-                    # reshape coh
-                    if coh.ndim == 2: 
-                        coh = coh[..., np.newaxis]
-                    elif coh.shape[0] <= 10: 
-                        coh = np.transpose(coh,(1,2,0))
+                    if coh.ndim == 2: coh = coh[...,None]
+                    elif coh.shape[0] <= 10: coh = coh.transpose(1,2,0)
 
                     psd_list.append(psd)
                     coh_list.append(coh)
 
-                psd_arr = np.array(psd_list)
-                coh_arr = np.array(coh_list)
+                session_psd.append(np.array(psd_list))
+                session_coh.append(np.array(coh_list))
 
-                # optional per-file debug (off by default)
-                if self.debug and debug_coh_per_file:
-                    print(f"[{cond}] COH(file) shape={coh_arr.shape} mean={coh_arr.mean():.4f}")
-
-                session_psd.append(psd_arr)
-                session_coh.append(coh_arr)
-
-            # concat all sessions
             cache[cond] = {
-                "psd": np.concatenate(session_psd, axis=0),
-                "coh": np.concatenate(session_coh, axis=0),
+                "psd": np.concatenate(session_psd),
+                "coh": np.concatenate(session_coh),
                 "seg": seg_last,
-                "raw": raw_last,
+                "raw": raw_last
             }
 
-            print(f"[{cond}] TOTAL epochs = {cache[cond]['psd'].shape[0]}")
+        # -----------------------------
+        # 2) PREDICT (CLOUD SAFE)
+        # -----------------------------
+        import tensorflow as tf
+        tf.keras.backend.clear_session()
 
-        # =============================
-        # PREDICT + OPTIONAL DEBUG
-        # =============================
         for cond, models in self.models.items():
-            if cond not in cache: 
-                continue
+            if cond not in cache: continue
 
             X_psd = cache[cond]["psd"]
             X_coh = cache[cond]["coh"]
@@ -248,35 +161,47 @@ class EEGSystem:
                 print(f"    freqs→ {np.round(freqs[:5],1)}")
                 print(f"    values→ {np.round(X_psd[0,ch,:5],3)}")
 
-            # =============================
-            # TIMING PREDICT LOOP
-            # =============================
-            print(f"\n=== MODEL ({cond}) ===")
-            cond_total = 0.0
+            E = X_psd.shape[0]
+            self.dbg(f"\n=== PREDICT {cond} (epochs={E}) ===")
+
+            cond_time = 0.0
+
+            def safe_predict(model, **kwargs):
+                try:
+                    proba, classes = model.predict_proba(**kwargs)
+                    return proba, classes, None
+                except Exception as e:
+                    return None, None, str(e)
 
             for model in models:
                 needed = model.inputs()
                 kwargs = {}
+
                 if "psd" in needed: kwargs["psd"] = X_psd
                 if "coh" in needed: kwargs["coh"] = X_coh
-                if {"cont","cat"}.issubset(needed):
+                if {"cont","cat"}.issubset(needed) or "cat" in needed:
                     kwargs.update(dict(
                         age=age, gender=gender,
-                        education=education, sleep=sleep, well=well
+                        education=education,
+                        sleep=sleep, well=well,
                     ))
 
                 t0 = time.perf_counter()
-                proba, classes = model.predict_proba(**kwargs)
+                proba, classes, err = safe_predict(model, **kwargs)
                 t_pred = (time.perf_counter()-t0)*1000
+
+                if err:
+                    results.append({
+                        "model": f"{model.name} ({cond})",
+                        "error": err
+                    })
+                    continue
 
                 t1 = time.perf_counter()
                 idx = model.hard_vote(proba)
                 t_vote = (time.perf_counter()-t1)*1000
-
                 t_total = t_pred + t_vote
-                cond_total += t_total
-
-                print(f"[{cond}] {model.name}: predict={t_pred:.1f}ms | vote={t_vote:.1f}ms | total={t_total:.1f}ms")
+                cond_time += t_total
 
                 results.append({
                     "model": f"{model.name} ({cond})",
@@ -289,13 +214,12 @@ class EEGSystem:
                     "t_total_ms": round(t_total,2),
                 })
 
-            print(f"[{cond}] TOTAL MODEL TIME = {cond_total:.1f}ms\n")
+                tf.keras.backend.clear_session()
 
-        # =============================
-        # DONE PIPELINE
-        # =============================
+            self.dbg(f"[{cond}] total={round(cond_time,1)} ms")
+
         pipeline_ms = (time.perf_counter()-t0_pipeline)*1000
-        print(f"\n=== PIPELINE DONE in {pipeline_ms:.1f} ms ===")
+        self.dbg(f"\n=== DONE {round(pipeline_ms,1)} ms ===")
 
         return {
             "results": results,
