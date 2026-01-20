@@ -8,7 +8,7 @@ ARTIFACTS_DIR = "artifacts/CNN"
 class CNNModel(BaseModel):
     def __init__(self, condition="EC", debug=False):
         assert condition in ["EO","EC"]
-        name = f"CNN_COH_{condition}"
+        name = f"CNN_{condition}"
         super().__init__(name, n_classes=3)
 
         self.condition = condition
