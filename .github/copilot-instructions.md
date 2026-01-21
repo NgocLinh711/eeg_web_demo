@@ -1,4 +1,4 @@
-# EEG Web Demo - AI Agent Instructions
+# EEG Web Demo
 
 ## Project Overview
 This is an EEG signal classification web application that processes brain wave data to predict cognitive states (e.g., eye-open/eye-closed conditions). The system uses machine learning to analyze EEG signals through power spectral density (PSD) and coherence features.

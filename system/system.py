@@ -67,6 +67,8 @@ class EEGSystem:
         # -----------------------------
         # 1) LOAD + FEATURE EXTRACTION
         # -----------------------------
+        t0_pre = time.perf_counter()     # <--- bắt đầu tiền xử lý
+
         for cond, flist in cond_files.items():
             if not flist: continue
             self.dbg(f"\n=== CONDITION {cond} ==")
@@ -81,7 +83,11 @@ class EEGSystem:
 
                 ds = autopreprocess(tmp, self.fs, print_debug=self.debug)
                 seg, err = segment_and_reference(ds, self.epoch_sec, self.fs, print_debug=self.debug)
-                os.remove(tmp)
+                if os.path.exists(tmp):
+                    try:
+                        os.remove(tmp)
+                    except PermissionError:
+                        pass
 
                 if err: return None, err
                 seg_last, raw_last = seg, ds
@@ -105,6 +111,8 @@ class EEGSystem:
                 "seg": seg_last,
                 "raw": raw_last
             }
+        t_pre = (time.perf_counter() - t0_pre) * 1000     # <--- ms
+        self.dbg(f"[PREPROCESS] {round(t_pre,1)} ms")
 
         # -----------------------------
         # 2) PREDICT (CLOUD SAFE)
@@ -214,6 +222,8 @@ class EEGSystem:
                     "t_total_ms": round(t_total,2),
                 })
 
+                print(f"[PREDICT] {model.name} ({cond}): pred={t_pred:.1f} ms vote={t_vote:.1f} ms total={t_total:.1f} ms")
+
                 tf.keras.backend.clear_session()
 
             self.dbg(f"[{cond}] total={round(cond_time,1)} ms")
@@ -224,5 +234,7 @@ class EEGSystem:
         return {
             "results": results,
             "cache": cache,
+            "preprocess_ms": round(t_pre,1),   # <---
             "pipeline_ms": round(pipeline_ms,1),
         }, None
+ 
